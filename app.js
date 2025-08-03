@@ -19,13 +19,13 @@ async function connectCore() {
     const device = await navigator.bluetooth.requestDevice({
       acceptAllDevices: true,
       optionalServices: [
-        "00002100-5b1e-4347-b07c-97b514daE121",
-        "00002101-5b1e-4347-b07c-97b514daE121"
+        "00002100-5b1e-4347-b07c-97b514dae121",
+        "00002101-5b1e-4347-b07c-97b514dae121"
       ]
     });
     const server = await device.gatt.connect();
-    const service = await server.getPrimaryService("00002100-5b1e-4347-b07c-97b514daE121");
-    const charac = await service.getCharacteristic("00002101-5b1e-4347-b07c-97b514daE121");
+    const service = await server.getPrimaryService("00002100-5b1e-4347-b07c-97b514dae121");
+    const charac = await service.getCharacteristic("00002101-5b1e-4347-b07c-97b514dae121");
     await charac.startNotifications();
     charac.addEventListener("characteristicvaluechanged", (event) => {
       const value = event.target.value;
