@@ -5,22 +5,14 @@ let heatFlux = null;
 let power = null;
 const SENSOR_AREA_CM2 = 15;
 
-function render(flux, watt, eff) {
-  root.innerHTML = `
-    <div style="font-family: sans-serif; padding: 1em; max-width: 400px; margin: auto;">
-      <h2>Live Effizienz Monitor</h2>
-      <button id="coreBtn">CORE verbinden</button>
-      <button id="assiomaBtn">Assioma verbinden</button>
-      <p><strong>Wärmeverlust:</strong> ${flux !== null ? flux.toFixed(2) : "--"} W</p>
-      <p><strong>Leistung:</strong> ${watt !== null ? watt : "--"} W</p>
-      <p><strong>Effizienz:</strong> ${eff !== null ? eff.toFixed(1) : "--"} %</p>
-    </div>
-  `;
-  document.getElementById("coreBtn").onclick = connectCore;
-  document.getElementById("assiomaBtn").onclick = connectAssioma;
+function updateDisplay() {
+  document.getElementById("fluxDisplay").textContent = heatFlux !== null ? heatFlux.toFixed(2) + " W" : "--";
+  document.getElementById("powerDisplay").textContent = power !== null ? power + " W" : "--";
+  const eff = (power !== null && heatFlux !== null)
+    ? ((power / (power + heatFlux)) * 100).toFixed(1) + " %"
+    : "--";
+  document.getElementById("effDisplay").textContent = eff;
 }
-
-render(null, null, null);
 
 async function connectCore() {
   try {
@@ -40,8 +32,7 @@ async function connectCore() {
       const raw = value.getUint16(2, true);
       const mWcm2 = raw / 100.0;
       heatFlux = (mWcm2 * SENSOR_AREA_CM2) / 1000;
-      const eff = power ? (power / (power + heatFlux)) * 100 : null;
-      render(heatFlux, power, eff);
+      updateDisplay();
     });
   } catch (err) {
     alert("CORE Verbindung fehlgeschlagen: " + err);
@@ -61,10 +52,25 @@ async function connectAssioma() {
     charac.addEventListener("characteristicvaluechanged", (event) => {
       const value = event.target.value;
       power = value.getUint16(2, true);
-      const eff = heatFlux ? (power / (power + heatFlux)) * 100 : null;
-      render(heatFlux, power, eff);
+      updateDisplay();
     });
   } catch (err) {
     alert("Assioma Verbindung fehlgeschlagen: " + err);
   }
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+  root.innerHTML = `
+    <div style="font-family: sans-serif; padding: 1em; max-width: 400px; margin: auto;">
+      <h2>Live Effizienz Monitor</h2>
+      <button id="coreBtn">CORE verbinden</button>
+      <button id="assiomaBtn">Assioma verbinden</button>
+      <p><strong>Wärmeverlust:</strong> <span id="fluxDisplay">--</span></p>
+      <p><strong>Leistung:</strong> <span id="powerDisplay">--</span></p>
+      <p><strong>Effizienz:</strong> <span id="effDisplay">--</span></p>
+    </div>
+  `;
+
+  document.getElementById("coreBtn").addEventListener("click", connectCore);
+  document.getElementById("assiomaBtn").addEventListener("click", connectAssioma);
+});
