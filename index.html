@@ -3,11 +3,27 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Live Effizienz Monitor</title>
-  <script type="module" src="app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: sans-serif; text-align: center; margin: 2em; }
+    canvas { max-width: 100%; }
+    button { margin: 0.5em; padding: 0.5em 1em; font-size: 1em; }
+  </style>
 </head>
 <body>
-  <div id="root"></div>
+  <h1>Live Effizienz Monitor</h1>
+  <button id="coreBtn">CORE verbinden</button>
+  <button id="assiomaBtn">Assioma verbinden</button>
+
+  <div>
+    <p>Wärmeverlust: <span id="corePower">--</span> W</p>
+    <p>Leistung: <span id="bikePower">--</span> W</p>
+    <p>Effizienz: <span id="efficiency">--</span> %</p>
+  </div>
+
+  <canvas id="chart" height="100"></canvas>
+
+  <script src="app.js"></script>
 </body>
 </html>

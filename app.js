@@ -1,76 +1,90 @@
 
-const root = document.getElementById("root");
+let chart = null;
+const data = {
+  labels: [],
+  datasets: [
+    { label: 'Wärmeverlust (W)', borderColor: 'red', data: [], tension: 0.2 },
+    { label: 'Leistung (W)', borderColor: 'blue', data: [], tension: 0.2 },
+    { label: 'Effizienz (%)', borderColor: 'green', data: [], tension: 0.2 }
+  ]
+};
 
-let heatFlux = null;
-let power = null;
-const SENSOR_AREA_CM2 = 15;
+function updateChart(coreWatt, bikeWatt, efficiency) {
+  const now = new Date().toLocaleTimeString();
+  data.labels.push(now);
+  if (data.labels.length > 20) {
+    data.labels.shift();
+    data.datasets.forEach(d => d.data.shift());
+  }
+  data.datasets[0].data.push(coreWatt);
+  data.datasets[1].data.push(bikeWatt);
+  data.datasets[2].data.push(efficiency);
 
-function updateDisplay() {
-  document.getElementById("fluxDisplay").textContent = heatFlux !== null ? heatFlux.toFixed(2) + " W" : "--";
-  document.getElementById("powerDisplay").textContent = power !== null ? power + " W" : "--";
-  const eff = (power !== null && heatFlux !== null)
-    ? ((power / (power + heatFlux)) * 100).toFixed(1) + " %"
-    : "--";
-  document.getElementById("effDisplay").textContent = eff;
+  chart.update();
 }
 
-async function connectCore() {
-  try {
-    const device = await navigator.bluetooth.requestDevice({
-      acceptAllDevices: true,
-      optionalServices: [
-        "00002100-5b1e-4347-b07c-97b514dae121",
-        "00002101-5b1e-4347-b07c-97b514dae121"
-      ]
-    });
-    const server = await device.gatt.connect();
-    const service = await server.getPrimaryService("00002100-5b1e-4347-b07c-97b514dae121");
-    const charac = await service.getCharacteristic("00002101-5b1e-4347-b07c-97b514dae121");
-    await charac.startNotifications();
-    charac.addEventListener("characteristicvaluechanged", (event) => {
-      const value = event.target.value;
-      const raw = value.getUint16(2, true);
-      const mWcm2 = raw / 100.0;
-      heatFlux = (mWcm2 * SENSOR_AREA_CM2) / 1000;
-      updateDisplay();
-    });
-  } catch (err) {
-    alert("CORE Verbindung fehlgeschlagen: " + err);
+window.onload = () => {
+  const ctx = document.getElementById('chart').getContext('2d');
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: data,
+    options: {
+      scales: {
+        y: { beginAtZero: true }
+      }
+    }
+  });
+
+  document.getElementById("coreBtn").onclick = async () => {
+    try {
+      const device = await navigator.bluetooth.requestDevice({
+        filters: [{ namePrefix: 'CORE' }],
+        optionalServices: ['00002100-5b1e-4347-b07c-97b514dae121']
+      });
+      const server = await device.gatt.connect();
+      const service = await server.getPrimaryService('00002100-5b1e-4347-b07c-97b514dae121');
+      const characteristic = await service.getCharacteristic('00002101-5b1e-4347-b07c-97b514dae121');
+      await characteristic.startNotifications();
+      characteristic.addEventListener('characteristicvaluechanged', event => {
+        const val = event.target.value;
+        const power = val.getUint16(0, true) / 100;
+        document.getElementById("corePower").textContent = power.toFixed(2);
+        latest.core = power;
+        calculateEfficiency();
+      });
+    } catch (error) {
+      alert("CORE Verbindung fehlgeschlagen: " + error);
+    }
+  };
+
+  document.getElementById("assiomaBtn").onclick = async () => {
+    try {
+      const device = await navigator.bluetooth.requestDevice({
+        filters: [{ services: ['cycling_power'] }]
+      });
+      const server = await device.gatt.connect();
+      const service = await server.getPrimaryService('cycling_power');
+      const characteristic = await service.getCharacteristic('cycling_power_measurement');
+      await characteristic.startNotifications();
+      characteristic.addEventListener('characteristicvaluechanged', event => {
+        const val = event.target.value;
+        const power = val.getUint16(2, true);
+        document.getElementById("bikePower").textContent = power.toFixed(0);
+        latest.bike = power;
+        calculateEfficiency();
+      });
+    } catch (error) {
+      alert("Assioma Verbindung fehlgeschlagen: " + error);
+    }
+  };
+};
+
+const latest = { core: null, bike: null };
+
+function calculateEfficiency() {
+  if (latest.core != null && latest.bike != null) {
+    const eff = latest.bike / (latest.bike + latest.core) * 100;
+    document.getElementById("efficiency").textContent = eff.toFixed(1);
+    updateChart(latest.core, latest.bike, eff);
   }
 }
-
-async function connectAssioma() {
-  try {
-    const device = await navigator.bluetooth.requestDevice({
-      filters: [{ namePrefix: "Assioma" }],
-      optionalServices: ["cycling_power"]
-    });
-    const server = await device.gatt.connect();
-    const service = await server.getPrimaryService("cycling_power");
-    const charac = await service.getCharacteristic("00002a63-0000-1000-8000-00805f9b34fb");
-    await charac.startNotifications();
-    charac.addEventListener("characteristicvaluechanged", (event) => {
-      const value = event.target.value;
-      power = value.getUint16(2, true);
-      updateDisplay();
-    });
-  } catch (err) {
-    alert("Assioma Verbindung fehlgeschlagen: " + err);
-  }
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-  root.innerHTML = `
-    <div style="font-family: sans-serif; padding: 1em; max-width: 400px; margin: auto;">
-      <h2>Live Effizienz Monitor</h2>
-      <button id="coreBtn">CORE verbinden</button>
-      <button id="assiomaBtn">Assioma verbinden</button>
-      <p><strong>Wärmeverlust:</strong> <span id="fluxDisplay">--</span></p>
-      <p><strong>Leistung:</strong> <span id="powerDisplay">--</span></p>
-      <p><strong>Effizienz:</strong> <span id="effDisplay">--</span></p>
-    </div>
-  `;
-
-  document.getElementById("coreBtn").addEventListener("click", connectCore);
-  document.getElementById("assiomaBtn").addEventListener("click", connectAssioma);
-});
